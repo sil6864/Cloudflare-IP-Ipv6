@@ -9,6 +9,10 @@ on:
 
 jobs:
   update-ip-list:
+    if: |
+      github.event_name == 'schedule' || 
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'watch' && github.event.sender.login == 'sil6864')
     runs-on: ubuntu-latest
     permissions:
       contents: write
