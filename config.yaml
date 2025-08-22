@@ -1,0 +1,54 @@
+# Cloudflare IP 抓取配置文件
+# 所有参数均为必填项，缺失会导致脚本报错
+
+sources:  # 需要抓取的IP数据源列表。每项可为：
+  # - url: 必填，数据源URL
+  #   selector: 可选，CSS选择器，优先用此选择器提取IP，未指定则自动智能识别
+  #   page_type: 可选，页面类型(static/dynamic/api/table)，未指定则自动检测
+  #   extra_headers: 可选，额外请求头
+  #   wait_time: 可选，动态页面等待时间(ms)，默认5000ms
+  #   actions: 可选，动态页面交互操作列表
+  #- url: https://monitor.gacjie.cn/page/cloudflare/ipv4.html
+  #  selector: 'tbody'     # 优先提取tbody标签内的IP
+  #  page_type: 'table'    # 表格类型页面
+  - url: https://ip.164746.xyz
+    selector: 'td.recommended'        # 优先提取td.recommended标签内的IP
+    page_type: 'static'    # 静态页面
+  - url: https://www.nslookup.io/domains/bpb.yousef.isegaro.com/dns-records/#cloudflare
+    selector: 'tr.group'        # 优先提取tr.group标签内的IP
+    page_type: 'dynamic'    # 动态页面
+    wait_time: 8000         # 等待8秒加载完成
+  - url: https://cf.090227.xyz
+    page_type: 'dynamic'    # 动态页面
+    actions:                # 动态页面交互操作
+      - type: 'click'
+        selector: '.refresh-btn'
+      - type: 'wait'
+        time: 3000
+  - url: https://stock.hostmonit.com/CloudFlareYes
+    # 未指定page_type则自动智能识别
+  - url: https://ipdb.030101.xyz/bestcfv4
+    page_type: 'static'        # API类型页面，直接解析JSON
+    response_format: 'json'  # 响应格式
+    json_path: 'data.ips'    # JSON路径，用于提取IP列表
+pattern: '\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'   # 匹配IP的正则表达式
+output: "ip.txt"         # 输出文件名，保存所有唯一IP
+timeout: 10              # 网络请求超时时间（秒）
+log: "fetch_cloudflare_ips.log"   # 日志文件名
+max_workers: 4           # 并发线程数，控制静态抓取并发量
+log_level: "INFO"        # 日志等级（DEBUG/INFO/WARNING/ERROR）
+js_retry: 3              # JS动态抓取最大重试次数
+js_retry_interval: 2.0   # JS动态抓取重试间隔（秒） 
+max_ips_per_url: 10      # 每个URL最多保留多少个IP（0表示不限制）
+per_url_limit_mode: "top"  # 超出限制时的筛选模式: random-随机保留, top-保留页面靠前的
+exclude_ips:          # 排除IP列表，支持单个IP和CIDR格式网段
+  - "127.0.0.1"        # 排除单个IP，精确匹配
+  - "192.168.1.0/24"   # 排除整个网段，CIDR格式 
+allowed_regions:        # 只保留这些地区的IP，使用国家/地区代码（如CN、US、HK、JP等），留空或缺省则不过滤
+ # - "US"
+ # - "HK"
+ip_geo_api: "http://ip-api.com/json/{ip}"   # IP归属地API模板，{ip}会被替换为实际IP 
+auto_detect: true       # 是否自动检测页面类型，设为false则必须显式指定page_type
+xpath_support: true     # 是否支持XPath选择器（除CSS选择器外）
+follow_redirects: true  # 是否跟随页面重定向 
+enable_telegram_notification: True
