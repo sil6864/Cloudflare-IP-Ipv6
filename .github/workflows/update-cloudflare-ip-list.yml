@@ -31,7 +31,7 @@ jobs:
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        LOG_LEVEL: "DEBUG"
+        LOG_LEVEL: "DEBUG"  # 启用详细日志
       run: python fetch_cloudflare_ips.py
         
     - name: Commit and push changes
@@ -47,3 +47,9 @@ jobs:
           git commit -m "Auto update Cloudflare IPs"
           git push
         fi
+    - name: Upload debug files
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-html-files
+        path: debug_*.html
