@@ -10,6 +10,7 @@ log: "fetch_cloudflare_ipv6.log"
 max_workers: 4
 log_level: "INFO"
 js_retry: 3
+timeout: 30
 js_retry_interval: 2.0
 max_ips_per_url: 10
 per_url_limit_mode: "top"
