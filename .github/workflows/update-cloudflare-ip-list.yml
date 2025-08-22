@@ -47,9 +47,10 @@ jobs:
           git commit -m "Auto update Cloudflare IPs"
           git push
         fi
+        
     - name: Upload debug files
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 更新到 v4 版本
       with:
         name: debug-html-files
         path: debug_*.html
