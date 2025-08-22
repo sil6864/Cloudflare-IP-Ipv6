@@ -37,16 +37,17 @@ jobs:
     - name: Commit and push changes
       if: success()
       run: |
-        # 检查ip.txt是否有变化
-        if git diff --quiet ip.txt; then
-          echo "No changes detected in ip.txt, skipping commit."
+        # 检查ipv6.txt是否有变化
+        if git diff --quiet ipv6.txt; then
+          echo "No changes detected in ipv6.txt, skipping commit."
         else
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@users.noreply.github.com'
-          git add ip.txt
+          git add ipv6.txt
           git commit -m "Auto update Cloudflare IPs"
           git push
         fi
+
         
     - name: Upload debug files
       if: always()
