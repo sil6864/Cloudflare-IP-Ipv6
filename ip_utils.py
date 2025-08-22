@@ -196,6 +196,8 @@ def get_retry_session(timeout: int) -> requests.Session:
 
 # ===== 页面内容处理 =====
 def extract_ips_from_html(html: str, pattern: str, selector: Optional[str] = None) -> List[str]:
+    # 保存HTML用于调试
+    save_html_for_debugging(html, "debug.html")
     """
     智能提取IP，优先用selector，其次自动检测IP密集块，最后全局遍历。
     :param html: 网页HTML
@@ -473,6 +475,15 @@ def filter_ips_by_region(ip_list: List[str], allowed_regions: List[str], api_tem
         else:
             logging.info(f"[REGION] 过滤掉IP: {ip}，归属地: {region if region else '未知'}")
     return filtered
+
+def save_html_for_debugging(html: str, filename: str):
+    """保存HTML内容用于调试"""
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(html)
+        logging.debug(f"已保存HTML内容到 {filename}")
+    except Exception as e:
+        logging.error(f"保存HTML失败: {e}")
 
 # ===== Telegram 通知 =====
 def send_telegram_notification(message: str, bot_token: str, chat_id: str) -> bool:
