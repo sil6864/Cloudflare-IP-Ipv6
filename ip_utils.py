@@ -120,16 +120,27 @@ def load_config(config_path: str = 'config.yaml') -> Dict[str, Any]:
 # ===== IP工具函数 =====
 def is_valid_ipv6(ip_str: str) -> bool:
     """检查是否为有效的IPv6地址"""
+    # 允许包含端口号（如 [2001:db8::1]:8080）
+    if ip_str.startswith('[') and ']:' in ip_str:
+        ip_str = ip_str.split(']:')[0][1:]
+    
+    # 允许CIDR格式
+    if '/' in ip_str:
+        try:
+            ipaddress.IPv6Network(ip_str, strict=False)
+            return True
+        except:
+            return False
+    
     try:
-        # 尝试解析为IPv6地址
         ipaddress.IPv6Address(ip_str)
         return True
     except ipaddress.AddressValueError:
-        # 尝试处理可能的CIDR格式
-        if '/' in ip_str:
+        # 尝试处理简写格式（如 ::1）
+        if '::' in ip_str:
             try:
-                # 尝试解析为IPv6网络
-                ipaddress.IPv6Network(ip_str, strict=False)
+                # 尝试扩展简写格式
+                expanded = ipaddress.IPv6Address(ip_str).exploded
                 return True
             except:
                 return False
@@ -275,11 +286,12 @@ def fetch_ip_dynamic(url: str, pattern: str, timeout: int, page: Page, selector:
     
     try:
         # 设置更长的超时时间
-        page.set_default_timeout(60000)
+        page.set_default_timeout(60000)  # 60秒超时
         
         for attempt in range(1, js_retry + 1):
             try:
                 logging.info(f"[DYNAMIC] 尝试 #{attempt}: {url}")
+                # 增加页面加载超时时间
                 page.goto(url, timeout=60000)
                 
                 # 等待页面完全加载
@@ -289,49 +301,19 @@ def fetch_ip_dynamic(url: str, pattern: str, timeout: int, page: Page, selector:
                 # 获取页面内容
                 content = page.content()
                 
-                # 尝试多种提取方法
-                if selector:
-                    try:
-                        elements = page.query_selector_all(selector)
-                        for elem in elements:
-                            text = elem.inner_text()
-                            ips = extract_ips(text, pattern)
-                            if ips:
-                                extracted_ips.extend(ips)
-                                logging.info(f"[DYNAMIC] 使用选择器找到 {len(ips)} 个IP")
-                    except:
-                        logging.warning(f"[DYNAMIC] 选择器 '{selector}' 无效")
-                
-                # 如果选择器未找到IP，尝试表格提取
-                if not extracted_ips:
-                    tables = page.query_selector_all('table')
-                    for table in tables:
-                        rows = table.query_selector_all('tr')
-                        for row in rows:
-                            cells = row.query_selector_all('td')
-                            for cell in cells:
-                                text = cell.inner_text()
-                                ips = extract_ips(text, pattern)
-                                if ips:
-                                    extracted_ips.extend(ips)
-                                    logging.info(f"[DYNAMIC] 表格中找到 {len(ips)} 个IP")
-                
-                # 如果仍未找到，尝试全局提取
-                if not extracted_ips:
-                    text = page.inner_text('body')
-                    ips = extract_ips(text, pattern)
-                    if ips:
-                        extracted_ips.extend(ips)
-                        logging.info(f"[DYNAMIC] 全局文本中找到 {len(ips)} 个IP")
+                # 直接使用全局提取方法
+                extracted_ips = extract_ips(content, pattern)
                 
                 if extracted_ips:
                     logging.info(f"[DYNAMIC] 动态抓取成功: {url}，共{len(extracted_ips)}个IP")
-                    return list(set(extracted_ips))  # 去重
-                
-                logging.warning(f"[DYNAMIC] 动态抓取无IP: {url}，第{attempt}次")
+                    return extracted_ips
+                else:
+                    logging.warning(f"[DYNAMIC] 动态抓取无IP: {url}，第{attempt}次")
                 
             except Exception as e:
                 logging.error(f"[DYNAMIC] 动态抓取异常: {url}，第{attempt}次，错误: {e}")
+                # 保存页面内容用于调试
+                save_html_for_debugging(page.content(), f"debug_{url.replace('/', '_')}_{attempt}.html")
             
             if attempt < js_retry:
                 time.sleep(js_retry_interval)
