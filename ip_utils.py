@@ -142,8 +142,9 @@ def extract_ips(text: str, pattern: str) -> List[str]:
     :param pattern: IP正则表达式
     :return: IP列表 (按找到的顺序)
     """
-    # 使用正则表达式提取所有IP，顺序与原文一致
-    raw_ips = re.findall(pattern, text)
+    # 使用正则表达式提取所有匹配的完整字符串
+    matches = re.finditer(pattern, text)
+    raw_ips = [match.group(0) for match in matches]  # 获取完整的匹配字符串
     
     # 调试：记录找到的原始IP
     if raw_ips:
