@@ -38,7 +38,7 @@ jobs:
       run: |
         # 检查ip.txt是否有变化
         if git diff --quiet ip.txt; then
-          echo "No changes detected in ip.txt, skipping commit."
+          echo "No changes detected in ipv6.txt, skipping commit."
         else
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@users.noreply.github.com'
