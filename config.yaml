@@ -14,7 +14,7 @@ log_level: "INFO"
 js_retry: 3
 timeout: 30
 js_retry_interval: 2.0
-max_ips_per_url: 10
+max_ips_per_url: 20
 per_url_limit_mode: "top"
 exclude_ips:
   - "2001:db8::1"
