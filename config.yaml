@@ -42,3 +42,4 @@ ip_geo_api: "http://ip-api.com/json/{ip}"   # IP归属地API模板
 auto_detect: true       # 是否自动检测页面类型
 xpath_support: true     # 是否支持XPath选择器
 follow_redirects: true  #
+enable_telegram_notification: True
