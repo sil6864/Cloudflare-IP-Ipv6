@@ -160,7 +160,7 @@ def extract_ips(text: str, pattern: str) -> List[str]:
     """
     # 使用正则表达式提取所有IP，顺序与原文一致
     raw_ips = re.findall(pattern, text)
-    # 过滤无效IP地址 (如64.110.104.301)
+    # 过滤无效IP地址
     valid_ips = [ip for ip in raw_ips if is_valid_ipv6(ip)]
     invalid_count = len(raw_ips) - len(valid_ips)
     if invalid_count > 0:
@@ -265,7 +265,6 @@ def fetch_ip_auto(
         response.raise_for_status()
         text = response.text
         extracted_ips = extract_ips_from_html(text, pattern, selector)
-        logging.info(f"[DEBUG] {url} 静态抓取前10个IP: {extracted_ips[:10]}")
         if extracted_ips:
             logging.info(f"[AUTO] 静态抓取成功: {url}，共{len(extracted_ips)}个IP")
             return extracted_ips
@@ -296,7 +295,7 @@ def fetch_ip_auto(
                 page.wait_for_timeout(DEFAULT_WAIT_TIMEOUT)
                 if found_ip_list:
                     found_ip_list = list(dict.fromkeys(found_ip_list))
-                    logging.info(f"[AUTO] 监听接口自动提取到 {len(found_ip_list)} 个IP: {found_ip_list[:10]}")
+                    logging.info(f"[AUTO] 监听接口自动提取到 {len(found_ip_list)} 个IP")
                     return found_ip_list
                 page_content = page.content()
                 if '<html' in page_content.lower():
@@ -312,11 +311,9 @@ def fetch_ip_auto(
                         for element in elements:
                             ip_list.extend(extract_ips(element.get_text(), pattern))
                     extracted_ips = list(dict.fromkeys(ip_list))
-                    logging.info(f"[DEBUG] {url} JS动态抓取前10个IP: {extracted_ips[:10]}")
                 else:
                     ip_list = extract_ips(page_content, pattern)
                     extracted_ips = list(dict.fromkeys(ip_list))
-                    logging.info(f"[DEBUG] {url} JS动态纯文本前10个IP: {extracted_ips[:10]}")
                 if extracted_ips:
                     logging.info(f"[AUTO] JS动态抓取成功: {url}，共{len(extracted_ips)}个IP")
                     return extracted_ips
@@ -335,7 +332,7 @@ async def fetch_ip_static_async(url: str, pattern: str, timeout: int, session: a
     """
     异步静态页面抓取任务，返回(url, IP列表 (有序且唯一), 是否成功)。
     :param url: 目标URL
-    :param pattern: IP正则
+    :param pattern: IP正则表达式
     :param timeout: 超时时间
     :param session: aiohttp.ClientSession
     :param selector: 可选，CSS选择器
@@ -350,7 +347,6 @@ async def fetch_ip_static_async(url: str, pattern: str, timeout: int, session: a
                 return (url, [], False)
             text = await response.text()
             ordered_unique_ips: List[str] = extract_ips_from_html(text, pattern, selector)
-            logging.info(f"[DEBUG] {url} 静态抓取前10个IP: {ordered_unique_ips[:10]}")
             if ordered_unique_ips:
                 logging.info(f"[ASYNC] 静态抓取成功: {url}，共{len(ordered_unique_ips)}个IP")
                 return (url, ordered_unique_ips, True)
@@ -618,7 +614,6 @@ def playwright_dynamic_fetch_worker(args: tuple) -> tuple:
                     ip_list.extend(extract_ips(all_text, pattern))
                     logging.info(f"[EXTRACT] 全局遍历提取到{len(ip_list)}个IP")
                 result_ips = ip_list
-                logging.info(f"[DEBUG] {url} 动态抓取前10个IP: {result_ips[:10]}")
             finally:
                 page.close()
                 browser.close()
@@ -909,7 +904,7 @@ def process_table_row(row, ip_list, pattern):
     for cell in row.find_all(['td', 'th']):
         ip_list.extend(extract_ips(cell.get_text(), pattern))
 
-# ===== 新增：增强的动态页面处理 =====
+# ---------------- 新增：增强的动态页面处理 =====
 def perform_page_actions(page: Page, actions: List[Dict[str, Any]]) -> None:
     """
     执行页面交互操作序列。
@@ -1163,160 +1158,4 @@ def main() -> None:
     per_url_limit_mode = config['per_url_limit_mode']
     exclude_ips_config = config['exclude_ips']
     auto_detect = config.get('auto_detect', True)
-    xpath_support = config.get('xpath_support', False)
-    follow_redirects = config.get('follow_redirects', True)
-    enable_telegram_notification = config.get('enable_telegram_notification', False)
-
-    setup_logging(log_file, log_level)
-    logging.info(f"开始执行Cloudflare IPv6抓取，自动检测: {auto_detect}, XPath支持: {xpath_support}")
-    
-    if os.path.exists(output):
-        try:
-            os.remove(output)
-        except Exception as e:
-            logging.error(f"无法删除旧的输出文件: {output}，错误: {e}")
-
-    url_ips_map: Dict[str, List[str]] = {}
-    static_sources = []
-    dynamic_sources = []
-    
-    # 根据页面类型分类数据源
-    for source in sources:
-        url = source['url']
-        page_type = source.get('page_type')
-        # 如果明确指定为dynamic或配置了actions，直接归为动态
-        if page_type == 'dynamic' or source.get('actions'):
-            dynamic_sources.append(source)
-            logging.info(f"URL {url} 已归类为动态抓取")
-        else:
-            # 其他类型先尝试静态抓取
-            static_sources.append(source)
-            logging.info(f"URL {url} 已归类为静态抓取（可能降级为动态）")
-    
-    # 创建全局session（支持重定向）
-    session = get_retry_session(timeout)
-    if follow_redirects:
-        session.max_redirects = 5
-    
-    # 处理静态抓取
-    for source in static_sources:
-        try:
-            extracted_ips = fetch_ip_enhanced(
-                source=source,
-                pattern=pattern,
-                timeout=timeout,
-                session=session,
-                page=None,  # 静态模式不需要page
-                auto_detect=auto_detect
-            )
-            
-            if max_ips_per_url > 0 and len(extracted_ips) > max_ips_per_url:
-                original_count = len(extracted_ips)
-                processed_ips = limit_ips(extracted_ips, max_ips_per_url, per_url_limit_mode)
-                logging.info(f"[LIMIT] URL {source['url']} IP数量从 {original_count} 限制为 {len(processed_ips)}")
-                url_ips_map[source['url']] = processed_ips
-            else:
-                url_ips_map[source['url']] = extracted_ips
-            
-            if not extracted_ips:
-                # 静态抓取失败，加入动态队列
-                dynamic_sources.append(source)
-                logging.info(f"URL {source['url']} 静态抓取失败，已加入动态队列")
-                
-        except Exception as e:
-            logging.error(f"处理静态源异常: {source['url']}, 错误: {e}")
-            # 出错也加入动态队列
-            dynamic_sources.append(source)
-    
-    # 处理动态抓取
-    if dynamic_sources:
-        # 使用Playwright处理动态页面
-        try:
-            with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=True)
-                context = browser.new_context()
-                page = context.new_page()
-                
-                for source in dynamic_sources:
-                    try:
-                        extracted_ips = fetch_ip_enhanced(
-                            source=source,
-                            pattern=pattern,
-                            timeout=timeout,
-                            session=session,
-                            page=page,
-                            js_retry=js_retry,
-                            js_retry_interval=js_retry_interval,
-                            auto_detect=auto_detect
-                        )
-                        
-                        if max_ips_per_url > 0 and len(extracted_ips) > max_ips_per_url:
-                            original_count = len(extracted_ips)
-                            processed_ips = limit_ips(extracted_ips, max_ips_per_url, per_url_limit_mode)
-                            logging.info(f"[LIMIT] URL {source['url']} IP数量从 {original_count} 限制为 {len(processed_ips)}")
-                            url_ips_map[source['url']] = processed_ips
-                        else:
-                            url_ips_map[source['url']] = extracted_ips
-                            
-                    except Exception as e:
-                        logging.error(f"处理动态源异常: {source['url']}, 错误: {e}")
-                
-                page.close()
-                context.close()
-                browser.close()
-        except Exception as e:
-            logging.error(f"Playwright初始化失败: {e}")
-
-    # 排除IP和地区过滤
-    is_excluded_func = build_ip_exclude_checker(exclude_ips_config)
-    excluded_count = 0
-
-    merged_ips = []
-    for url, ips_list_for_url in url_ips_map.items():
-        original_count_before_exclude = len(ips_list_for_url)
-        retained_ips = [ip for ip in ips_list_for_url if not is_excluded_func(ip)]
-        excluded_in_source = original_count_before_exclude - len(retained_ips)
-        if excluded_in_source > 0:
-            logging.info(f"[EXCLUDE] URL {url} 排除了 {excluded_in_source} 个IP，保留 {len(retained_ips)} 个IP")
-        excluded_count += excluded_in_source
-        logging.info(f"URL {url} 贡献了 {len(retained_ips)} 个IP")
-        # 新增：日志输出每个URL最终筛选出来的IP（前20个）
-        if len(retained_ips) > 20:
-            logging.info(f"[RESULT] URL {url} 最终筛选IP（前20个）: {retained_ips[:20]} ... 共{len(retained_ips)}个")
-        else:
-            logging.info(f"[RESULT] URL {url} 最终筛选IP: {retained_ips}")
-        merged_ips.extend(retained_ips)
-
-    final_all_ips = list(dict.fromkeys(merged_ips))
-
-    allowed_regions = config.get('allowed_regions', [])
-    ip_geo_api = config.get('ip_geo_api', '')
-    if allowed_regions and ip_geo_api:
-        before_region_count = len(final_all_ips)
-        final_all_ips = filter_ips_by_region(final_all_ips, allowed_regions, ip_geo_api)
-        after_region_count = len(final_all_ips)
-        logging.info(f"[REGION] 地区过滤后，IP数量从 {before_region_count} 降至 {after_region_count}")
-
-    save_ips(final_all_ips, output)
-    logging.info(f"最终合并了 {len(url_ips_map)} 个URL的IP，排除了 {excluded_count} 个IP，共 {len(final_all_ips)} 个唯一IPv6地址")
-
-    if enable_telegram_notification:
-        telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
-
-        if telegram_bot_token and telegram_chat_id:
-            notification_message = (
-                f"✅ Cloudflare IPv6优选IP抓取完成！\n\n"
-                f"📊 **IP数量**: {len(final_all_ips)} 个\n"
-                f"🗑️ **排除IP**: {excluded_count} 个\n"
-                f"💾 **保存至**: `{output}`\n"
-            )
-            send_telegram_notification(notification_message, telegram_bot_token, telegram_chat_id)
-        else:
-            logging.warning("Telegram通知已启用，但未找到 TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID 环境变量。请检查GitHub Secrets配置。")
-    else:
-        logging.info("Telegram通知未启用。")
-
-# ===== 主流程入口 =====
-if __name__ == '__main__':
-    main()
+    xpath_support = config.get('xpath
