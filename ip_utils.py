@@ -313,7 +313,11 @@ def fetch_ip_dynamic(url: str, pattern: str, timeout: int, page: Page, selector:
             except Exception as e:
                 logging.error(f"[DYNAMIC] 动态抓取异常: {url}，第{attempt}次，错误: {e}")
                 # 保存页面内容用于调试
-                save_html_for_debugging(page.content(), f"debug_{url.replace('/', '_')}_{attempt}.html")
+                # 定义非法字符集合，并替换为下划线
+                invalid_chars_pattern = r'[":<>|*?\r\n/]' # 包含冒号和斜杠
+                cleaned_url_for_filename = re.sub(invalid_chars_pattern, '_', url)
+                debug_filename = f"debug_{cleaned_url_for_filename}_{attempt}.html"
+                save_html_for_debugging(page.content(), debug_filename)
             
             if attempt < js_retry:
                 time.sleep(js_retry_interval)
