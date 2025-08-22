@@ -1,6 +1,0 @@
-requests
-beautifulsoup4
-playwright
-pyyaml
-aiohttp
-ipaddress 
