@@ -18,9 +18,9 @@ per_url_limit_mode: "top"
 exclude_ips:
   - "2001:db8::1"
   - "2001:db8::/64"
-allowed_regions:
-  - "US"
-  - "HK"
+allowed_regions:        # 只保留这些地区的IP，使用国家/地区代码（如CN、US、HK、JP等），留空或缺省则不过滤
+ # - "US"
+ # - "HK"
 ip_geo_api: "http://ip-api.com/json/{ip}"
 auto_detect: true
 xpath_support: true
