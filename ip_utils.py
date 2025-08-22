@@ -121,9 +121,18 @@ def load_config(config_path: str = 'config.yaml') -> Dict[str, Any]:
 def is_valid_ipv6(ip_str: str) -> bool:
     """检查是否为有效的IPv6地址"""
     try:
+        # 尝试解析为IPv6地址
         ipaddress.IPv6Address(ip_str)
         return True
     except ipaddress.AddressValueError:
+        # 尝试处理可能的CIDR格式
+        if '/' in ip_str:
+            try:
+                # 尝试解析为IPv6网络
+                ipaddress.IPv6Network(ip_str, strict=False)
+                return True
+            except:
+                return False
         return False
 
 def extract_ips(text: str, pattern: str) -> List[str]:
@@ -133,13 +142,27 @@ def extract_ips(text: str, pattern: str) -> List[str]:
     :param pattern: IP正则表达式
     :return: IP列表 (按找到的顺序)
     """
-    # 使用正则表达式提取所有匹配的字符串
+    # 使用正则表达式提取所有IP，顺序与原文一致
     raw_ips = re.findall(pattern, text)
-    # 过滤无效的IP地址
-    valid_ips = [ip for ip in raw_ips if is_valid_ipv6(ip)]
+    
+    # 调试：记录找到的原始IP
+    if raw_ips:
+        logging.info(f"[EXTRACT] 找到 {len(raw_ips)} 个原始IP: {raw_ips[:5]}...")
+    
+    # 过滤无效IP地址
+    valid_ips = []
+    for ip in raw_ips:
+        # 清理IP字符串（去除多余空格等）
+        clean_ip = ip.strip()
+        if is_valid_ipv6(clean_ip):
+            valid_ips.append(clean_ip)
+        else:
+            logging.debug(f"[VALIDATION] 无效IP: {clean_ip}")
+    
     invalid_count = len(raw_ips) - len(valid_ips)
     if invalid_count > 0:
         logging.warning(f"[VALIDATION] 发现 {invalid_count} 个无效IP地址已被过滤")
+    
     return valid_ips
 
 def save_ips(ip_list: List[str], filename: str) -> None:
@@ -244,35 +267,77 @@ async def fetch_ip_static_async(url: str, pattern: str, timeout: int, session: a
 
 # ===== 动态页面抓取 =====
 def fetch_ip_dynamic(url: str, pattern: str, timeout: int, page: Page, selector: Optional[str] = None, js_retry: int = 3, js_retry_interval: float = 2.0) -> List[str]:
-    """
-    使用Playwright动态抓取页面IP。
-    :param url: 目标URL
-    :param pattern: IP正则
-    :param timeout: 超时时间
-    :param page: Playwright页面对象
-    :param selector: 可选，CSS选择器
-    :param js_retry: JS动态重试次数
-    :param js_retry_interval: JS重试间隔
-    :return: IP列表
-    """
     logging.info(f"[DYNAMIC] 开始动态抓取: {url}")
-    for attempt in range(1, js_retry + 1):
-        try:
-            page.goto(url, timeout=DEFAULT_JS_TIMEOUT)
-            page.wait_for_timeout(DEFAULT_WAIT_TIMEOUT)
-            content = page.content()
-            ip_list = extract_ips_from_html(content, pattern, selector)
-            if ip_list:
-                logging.info(f"[DYNAMIC] 动态抓取成功: {url}，共{len(ip_list)}个IP")
-                return ip_list
-            else:
+    extracted_ips = []
+    
+    try:
+        # 设置更长的超时时间
+        page.set_default_timeout(60000)
+        
+        for attempt in range(1, js_retry + 1):
+            try:
+                logging.info(f"[DYNAMIC] 尝试 #{attempt}: {url}")
+                page.goto(url, timeout=60000)
+                
+                # 等待页面完全加载
+                page.wait_for_load_state("networkidle", timeout=30000)
+                page.wait_for_timeout(5000)  # 额外等待5秒
+                
+                # 获取页面内容
+                content = page.content()
+                
+                # 尝试多种提取方法
+                if selector:
+                    try:
+                        elements = page.query_selector_all(selector)
+                        for elem in elements:
+                            text = elem.inner_text()
+                            ips = extract_ips(text, pattern)
+                            if ips:
+                                extracted_ips.extend(ips)
+                                logging.info(f"[DYNAMIC] 使用选择器找到 {len(ips)} 个IP")
+                    except:
+                        logging.warning(f"[DYNAMIC] 选择器 '{selector}' 无效")
+                
+                # 如果选择器未找到IP，尝试表格提取
+                if not extracted_ips:
+                    tables = page.query_selector_all('table')
+                    for table in tables:
+                        rows = table.query_selector_all('tr')
+                        for row in rows:
+                            cells = row.query_selector_all('td')
+                            for cell in cells:
+                                text = cell.inner_text()
+                                ips = extract_ips(text, pattern)
+                                if ips:
+                                    extracted_ips.extend(ips)
+                                    logging.info(f"[DYNAMIC] 表格中找到 {len(ips)} 个IP")
+                
+                # 如果仍未找到，尝试全局提取
+                if not extracted_ips:
+                    text = page.inner_text('body')
+                    ips = extract_ips(text, pattern)
+                    if ips:
+                        extracted_ips.extend(ips)
+                        logging.info(f"[DYNAMIC] 全局文本中找到 {len(ips)} 个IP")
+                
+                if extracted_ips:
+                    logging.info(f"[DYNAMIC] 动态抓取成功: {url}，共{len(extracted_ips)}个IP")
+                    return list(set(extracted_ips))  # 去重
+                
                 logging.warning(f"[DYNAMIC] 动态抓取无IP: {url}，第{attempt}次")
-        except Exception as e:
-            logging.error(f"[DYNAMIC] 动态抓取失败: {url}，第{attempt}次，错误: {e}")
-        if attempt < js_retry:
-            time.sleep(js_retry_interval)
-    logging.error(f"[DYNAMIC] 动态抓取多次失败: {url}")
-    return []
+                
+            except Exception as e:
+                logging.error(f"[DYNAMIC] 动态抓取异常: {url}，第{attempt}次，错误: {e}")
+            
+            if attempt < js_retry:
+                time.sleep(js_retry_interval)
+        
+        logging.error(f"[DYNAMIC] 动态抓取多次失败: {url}")
+    except Exception as e:
+        logging.error(f"[DYNAMIC] 动态抓取初始化失败: {url}，错误: {e}")
+    
+    return extracted_ips
 
 # ===== IP数量限制 =====
 def limit_ips(ip_collection: Union[List[str], Set[str]], max_count: int, mode: str = 'random') -> List[str]:
