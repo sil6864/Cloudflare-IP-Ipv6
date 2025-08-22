@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Cloudflare 优选IP自动抓取脚本
+Cloudflare IPv6优选IP自动抓取脚本
 --------------------------------
+- 专门抓取IPv6地址，排除IPv4
 - 支持静态/动态网页抓取，自动去重、排序、地区过滤、排除等功能
 - 配置灵活，支持多数据源、CSS选择器、IP数量限制、地区API等
 - 日志详细，异常处理健壮，兼容多平台
@@ -141,11 +142,11 @@ def setup_logging(log_file: str, log_level: str = 'INFO') -> None:
     )
 
 # ---------------- 工具函数 ----------------
-# ===== 新增：验证IPv4地址有效性 =====
-def is_valid_ipv4(ip_str: str) -> bool:
-    """检查是否为有效的IPv4地址"""
+# ===== 新增：验证IPv6地址有效性 =====
+def is_valid_ipv6(ip_str: str) -> bool:
+    """检查是否为有效的IPv6地址"""
     try:
-        ipaddress.IPv4Address(ip_str)
+        ipaddress.IPv6Address(ip_str)
         return True
     except ipaddress.AddressValueError:
         return False
@@ -160,7 +161,7 @@ def extract_ips(text: str, pattern: str) -> List[str]:
     # 使用正则表达式提取所有IP，顺序与原文一致
     raw_ips = re.findall(pattern, text)
     # 过滤无效IP地址 (如64.110.104.301)
-    valid_ips = [ip for ip in raw_ips if is_valid_ipv4(ip)]
+    valid_ips = [ip for ip in raw_ips if is_valid_ipv6(ip)]
     invalid_count = len(raw_ips) - len(valid_ips)
     if invalid_count > 0:
         logging.warning(f"[VALIDATION] 发现 {invalid_count} 个无效IP地址已被过滤")
@@ -1167,7 +1168,7 @@ def main() -> None:
     enable_telegram_notification = config.get('enable_telegram_notification', False)
 
     setup_logging(log_file, log_level)
-    logging.info(f"开始执行Cloudflare IP抓取，自动检测: {auto_detect}, XPath支持: {xpath_support}")
+    logging.info(f"开始执行Cloudflare IPv6抓取，自动检测: {auto_detect}, XPath支持: {xpath_support}")
     
     if os.path.exists(output):
         try:
@@ -1297,7 +1298,7 @@ def main() -> None:
         logging.info(f"[REGION] 地区过滤后，IP数量从 {before_region_count} 降至 {after_region_count}")
 
     save_ips(final_all_ips, output)
-    logging.info(f"最终合并了 {len(url_ips_map)} 个URL的IP，排除了 {excluded_count} 个IP，共 {len(final_all_ips)} 个唯一IP")
+    logging.info(f"最终合并了 {len(url_ips_map)} 个URL的IP，排除了 {excluded_count} 个IP，共 {len(final_all_ips)} 个唯一IPv6地址")
 
     if enable_telegram_notification:
         telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -1305,7 +1306,7 @@ def main() -> None:
 
         if telegram_bot_token and telegram_chat_id:
             notification_message = (
-                f"✅ Cloudflare 优选IP抓取完成！\n\n"
+                f"✅ Cloudflare IPv6优选IP抓取完成！\n\n"
                 f"📊 **IP数量**: {len(final_all_ips)} 个\n"
                 f"🗑️ **排除IP**: {excluded_count} 个\n"
                 f"💾 **保存至**: `{output}`\n"
