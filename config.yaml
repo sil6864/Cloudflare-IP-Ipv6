@@ -1,6 +1,6 @@
 sources:
-  - url: https://stock.hostmonit.com/CloudFlareYesV6
-    xpath_selector: '//tr[@class="el-table__row"]/td[2]/div/text()'
+  #- url: https://stock.hostmonit.com/CloudFlareYesV6
+  #  xpath_selector: '//tr[@class="el-table__row"]/td[2]/div/text()'
   - url: https://ipdb.030101.xyz/bestcfv6
   - url: https://www.wetest.vip/page/cloudflare/address_v6.html
   - url: https://www.wetest.vip/page/cloudfront/total_v6.html
