@@ -5,14 +5,10 @@ sources:
   #- url: https://www.wetest.vip/page/cloudfront/total_v6.html
   #- url: https://addressesapi.090227.xyz/cmcc-ipv6
 
-  - url: https://stock.hostmonit.com/CloudFlareYesV6
-    page_type: dynamic
-    selector: "td.el-table_2_column_14 div.cell"
-    wait_time: 8000
 
   - url: https://ipdb.030101.xyz/bestcfv6
     page_type: dynamic
-    wait_time: 10000
+    wait_time: 90000
 
   - url: https://www.wetest.vip/page/cloudflare/address_v6.html
     page_type: static
