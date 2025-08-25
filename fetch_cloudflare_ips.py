@@ -124,7 +124,9 @@ def main() -> None:
     
     # 将静态抓取失败的URL加入动态抓取队列
     for url in need_js_urls:
-        dynamic_sources.append(next(item for item in static_sources if item['url'] == url))
+        # 确保只添加一次，并且是原始的source配置
+        if url not in [s['url'] for s in dynamic_sources]:
+            dynamic_sources.append(next(item for item in static_sources if item['url'] == url))
     
     # 处理动态抓取
     if dynamic_sources:
@@ -135,7 +137,8 @@ def main() -> None:
             for source in dynamic_sources:
                 url = source['url']
                 selector = source.get('selector')
-                extracted_ips = fetch_ip_dynamic(url, pattern, timeout, page, selector, js_retry, js_retry_interval)
+                wait_time = source.get('wait_time', timeout) # 使用source中定义的wait_time，如果没有则使用全局timeout
+                extracted_ips = fetch_ip_dynamic(url, pattern, wait_time, page, selector, js_retry, js_retry_interval)
                 if max_ips_per_url > 0 and len(extracted_ips) > max_ips_per_url:
                     original_count = len(extracted_ips)
                     processed_ips = limit_ips(extracted_ips, max_ips_per_url, per_url_limit_mode)
@@ -152,6 +155,8 @@ def main() -> None:
     excluded_count = 0
 
     merged_ips = []
+    url_contributed_counts: Dict[str, int] = {} # 新增：存储每个URL在排除后贡献的IP数量
+
     for url, ips_list_for_url in url_ips_map.items():
         original_count_before_exclude = len(ips_list_for_url)
         retained_ips = [ip for ip in ips_list_for_url if not is_excluded_func(ip)]
@@ -160,6 +165,7 @@ def main() -> None:
             logging.info(f"[EXCLUDE] URL {url} 排除了 {excluded_in_source} 个IP，保留 {len(retained_ips)} 个IP")
         excluded_count += excluded_in_source
         logging.info(f"URL {url} 贡献了 {len(retained_ips)} 个IP")
+        url_contributed_counts[url] = len(retained_ips) # 记录每个URL贡献的IP数量
         merged_ips.extend(retained_ips)
 
     final_all_ips = list(dict.fromkeys(merged_ips))
@@ -177,11 +183,18 @@ def main() -> None:
         telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
         if telegram_bot_token and telegram_chat_id:
+            # 构建各URL贡献IP数量的详细信息
+            url_contributions_lines = []
+            for url, count in url_contributed_counts.items():
+                url_contributions_lines.append(f"- `{url}`: {count} 个IP")
+            url_contributions_message = "\n".join(url_contributions_lines)
+
             message = (
                 f"✅ Cloudflare IPv6优选IP抓取完成！\n\n"
-                f"📊 **IP数量**: {len(final_all_ips)} 个\n"
-                f"🗑️ **排除IP**: {excluded_count} 个\n"
-                f"💾 **保存至**: `{output}`\n"
+                f"📊 **总IP数量**: {len(final_all_ips)} 个\n" # 将“IP数量”改为“总IP数量”以区分
+                # 删除了 f"🗑️ **排除IP**: {excluded_count} 个\n"
+                f"💾 **保存至**: `{output}`\n\n"
+                f"🔗 **各URL贡献IP数量**:\n{url_contributions_message}\n" # 新增此部分
             )
             send_telegram_notification(message, telegram_bot_token, telegram_chat_id)
         else:
