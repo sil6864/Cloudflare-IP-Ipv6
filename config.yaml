@@ -1,10 +1,32 @@
 sources:
   #- url: https://stock.hostmonit.com/CloudFlareYesV6
-  #  xpath_selector: '//tr[@class="el-table__row"]/td[2]/div/text()'
+  #- url: https://ipdb.030101.xyz/bestcfv6
+  #- url: https://www.wetest.vip/page/cloudflare/address_v6.html
+  #- url: https://www.wetest.vip/page/cloudfront/total_v6.html
+  #- url: https://addressesapi.090227.xyz/cmcc-ipv6
+
+  - url: https://stock.hostmonit.com/CloudFlareYesV6
+    page_type: dynamic
+    selector: "td.el-table_2_column_14 div.cell"
+    wait_time: 8000
+
   - url: https://ipdb.030101.xyz/bestcfv6
+    page_type: dynamic
+    wait_time: 10000
+
   - url: https://www.wetest.vip/page/cloudflare/address_v6.html
+    page_type: static
+    selector: "td[data-label='优选地址']" 
+
   - url: https://www.wetest.vip/page/cloudfront/total_v6.html
+    page_type: static
+    selector: "td[data-label='优选地址']" 
+
   - url: https://addressesapi.090227.xyz/cmcc-ipv6
+    page_type: api
+
+
+
 pattern: '[0-9a-fA-F]{1,4}:[0-9a-fA-F:]+'
 output: "ipv6.txt"
 timeout: 10
