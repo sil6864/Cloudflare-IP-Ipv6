@@ -21,8 +21,6 @@ sources:
   - url: https://addressesapi.090227.xyz/cmcc-ipv6
     page_type: api
 
-  - url: https://ipv6.vps.68642820.xyz/result
-    page_type: api
 
   - url: https://bestip.badking.pp.ua/bestipv6
     page_type: api
